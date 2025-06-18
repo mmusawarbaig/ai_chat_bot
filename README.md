@@ -1,10 +1,11 @@
+# 🧠 RAG-based Research Paper Q&A Interface
 
 ```markdown
-# 🧠 RAG-based Research Paper Q&A Interface
 
 This project is a **Retrieval-Augmented Generation (RAG)** system with a **Gradio UI** that lets users query a folder of research papers (PDFs) and get intelligent answers using a Large Language Model (LLM).
 
----
+
+```
 
 ## 🚀 Features
 
@@ -13,11 +14,7 @@ This project is a **Retrieval-Augmented Generation (RAG)** system with a **Gradi
 - 💬 Generates answers using OpenAI's GPT (via LangChain)
 - 🧑‍💻 Simple Gradio web interface
 
----
-
 ## 📁 Project Structure
-
-```
 
 project/
 

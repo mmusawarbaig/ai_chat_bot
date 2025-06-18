@@ -1,0 +1,6 @@
+.gradio
+papers
+vectorstore.index
+processed_files.txt
+__pycache__
+.DS_Store

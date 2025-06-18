@@ -1,6 +1,7 @@
 import os
 import gradio as gr
 import hashlib
+import requests  # Add this import for Ollama health check
 from langchain_community.vectorstores import FAISS
 from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
@@ -12,6 +13,24 @@ PAPERS_FOLDER = "./papers"
 VECTORSTORE_PATH = "vectorstore.index"
 PROCESSED_FILES_PATH = "processed_files.txt"
 EMBEDDING_MODEL = "sentence-transformers/all-mpnet-base-v2"
+
+# --- Ollama health check ---
+def check_ollama_running(url="http://localhost:11434"):
+    try:
+        r = requests.get(f"{url}/api/tags", timeout=3)
+        if r.status_code == 200:
+            print("✅ Ollama server is running.")
+            return True
+        else:
+            print(f"⚠️ Ollama server responded with status code {r.status_code}.")
+            return False
+    except Exception as e:
+        print(f"❌ Ollama server is not running or not reachable at {url}. Error: {e}")
+        return False
+
+if not check_ollama_running():
+    print("\nPlease start Ollama before starting the RAG System.\n")
+    exit(1)
 
 def get_pdf_hash(filepath):
     """Return a hash of the PDF file contents."""
@@ -96,9 +115,9 @@ def answer_query(query):
 
 gr.Interface(
     fn=answer_query,
-    inputs=gr.Textbox(lines=2, placeholder="Ask a question about the papers..."),
+    inputs=gr.Textbox(lines=2, placeholder="Ask a question..."),
     outputs="text",
     title="Research Paper Q&A with RAG",
-    description="Enter a question. The system will retrieve relevant info from your research paper folder and answer using an LLM.",
+    description="Enter a question. The system will retrieve relevant info from your research paper folder and answer your query using an LLM.",
     flagging_mode="never"
 ).launch(server_name="0.0.0.0", server_port=7860) # Note: `share=True` allows public access to the Gradio app, remove for local use only.

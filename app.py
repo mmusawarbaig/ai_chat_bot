@@ -1,7 +1,7 @@
 import os
 import gradio as gr
 import hashlib
-import requests  # Add this import for Ollama health check
+import requests
 from langchain_community.vectorstores import FAISS
 from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
@@ -14,28 +14,31 @@ VECTORSTORE_PATH = "vectorstore.index"
 PROCESSED_FILES_PATH = "processed_files.txt"
 EMBEDDING_MODEL = "sentence-transformers/all-mpnet-base-v2"
 
-# --- Ollama health check ---
+
 def check_ollama_running(url="http://localhost:11434"):
+    """Check if the Ollama server is running and reachable."""
     try:
-        r = requests.get(f"{url}/api/tags", timeout=3)
-        if r.status_code == 200:
+        response = requests.get(f"{url}/api/tags", timeout=3)
+        if response.status_code == 200:
             print("✅ Ollama server is running.")
             return True
-        else:
-            print(f"⚠️ Ollama server responded with status code {r.status_code}.")
-            return False
+        print(f"⚠️ Ollama server responded with status code {response.status_code}.")
+        return False
     except Exception as e:
         print(f"❌ Ollama server is not running or not reachable at {url}. Error: {e}")
         return False
+
 
 if not check_ollama_running():
     print("\nPlease start Ollama before starting the RAG System.\n")
     exit(1)
 
+
 def get_pdf_hash(filepath):
     """Return a hash of the PDF file contents."""
     with open(filepath, "rb") as f:
         return hashlib.md5(f.read()).hexdigest()
+
 
 def get_current_files_and_hashes(folder):
     files = []
@@ -45,16 +48,19 @@ def get_current_files_and_hashes(folder):
             files.append((filename, get_pdf_hash(full_path)))
     return files
 
+
 def load_processed_files():
     if not os.path.exists(PROCESSED_FILES_PATH):
         return []
     with open(PROCESSED_FILES_PATH, "r") as f:
         return [line.strip().split(",") for line in f.readlines()]
 
+
 def save_processed_files(files_and_hashes):
     with open(PROCESSED_FILES_PATH, "w") as f:
         for filename, filehash in files_and_hashes:
             f.write(f"{filename},{filehash}\n")
+
 
 def load_documents_from_folder(folder_path):
     docs = []
@@ -64,27 +70,35 @@ def load_documents_from_folder(folder_path):
             docs.extend(loader.load())
     return docs
 
+
 def split_documents(documents, chunk_size=1000, chunk_overlap=200):
-    splitter = RecursiveCharacterTextSplitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+    splitter = RecursiveCharacterTextSplitter(
+        chunk_size=chunk_size, chunk_overlap=chunk_overlap
+    )
     return splitter.split_documents(documents)
+
 
 def create_vector_store(splits):
     embeddings = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL)
     vectorstore = FAISS.from_documents(splits, embeddings)
     return vectorstore
 
+
 def save_vectorstore(vectorstore, path):
     vectorstore.save_local(path)
+
 
 def load_vectorstore(path):
     embeddings = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL)
     return FAISS.load_local(path, embeddings, allow_dangerous_deserialization=True)
+
 
 def create_qa_pipeline(vectorstore):
     retriever = vectorstore.as_retriever()
     llm = OllamaLLM(model="llama3.1:8b")
     qa = RetrievalQA.from_chain_type(llm=llm, retriever=retriever)
     return qa
+
 
 # --- Main logic: load or build vectorstore ---
 print("Checking for new or updated documents...")
@@ -102,9 +116,11 @@ else:
     vectorstore = create_vector_store(splits)
     save_vectorstore(vectorstore, VECTORSTORE_PATH)
     save_processed_files(current_files)
+
 print("Setup complete.")
 
 qa_pipeline = create_qa_pipeline(vectorstore)
+
 
 def answer_query(query):
     output = qa_pipeline.invoke(query)
@@ -113,6 +129,7 @@ def answer_query(query):
         return output['result']
     return output  # fallback
 
+
 gr.Interface(
     fn=answer_query,
     inputs=gr.Textbox(lines=2, placeholder="Ask a question..."),
@@ -120,4 +137,4 @@ gr.Interface(
     title="Research Paper Q&A with RAG",
     description="Enter a question. The system will retrieve relevant info from your research paper folder and answer your query using an LLM.",
     flagging_mode="never"
-).launch(server_name="0.0.0.0", server_port=7860) # Note: `share=True` allows public access to the Gradio app, remove for local use only.
+).launch(server_name="0.0.0.0", server_port=7860)

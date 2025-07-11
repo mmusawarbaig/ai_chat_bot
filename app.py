@@ -8,12 +8,26 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain.chains import RetrievalQA
 from langchain_ollama import OllamaLLM
+import socket
 
 PAPERS_FOLDER = "./papers"
 VECTORSTORE_PATH = "vectorstore.index"
 PROCESSED_FILES_PATH = "processed_files.txt"
 EMBEDDING_MODEL = "sentence-transformers/all-mpnet-base-v2"
+SERVER_PORT = 7860
 
+print("*"*50)
+def get_local_ip():
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        # doesn't have to be reachable
+        s.connect(('10.255.255.255', 1))
+        IP = s.getsockname()[0]
+    except Exception:
+        IP = '127.0.0.1'
+    finally:
+        s.close()
+    return IP
 
 def check_ollama_running(url="http://localhost:11434"):
     """Check if the Ollama server is running and reachable."""
@@ -115,10 +129,9 @@ if os.path.exists(VECTORSTORE_PATH):
         if (filename, filehash) not in processed_files
     ]
 
-    print(f"Found {len(new_files)} new or updated documents.")
-    print("New files:", new_files)
-
     if new_files:
+        print(f"Found {len(new_files)} new or updated documents.")
+        print("New files:", new_files)
         print("Adding new or updated documents to vectorstore...")
         documents = load_documents_from_folder(PAPERS_FOLDER)
         # Only process new/updated docs
@@ -142,6 +155,7 @@ else:
     save_processed_files(current_files)
 
 print("Setup complete.")
+print("*"*50)
 
 qa_pipeline = create_qa_pipeline(vectorstore)
 
@@ -161,4 +175,4 @@ gr.Interface(
     title="Research Paper Q&A with RAG",
     description="Enter a question. The system will retrieve relevant info from your research paper folder and answer your query using an LLM.",
     flagging_mode="never"
-).launch(server_name="0.0.0.0", server_port=7860)
+).launch(server_name=get_local_ip(), server_port=SERVER_PORT)

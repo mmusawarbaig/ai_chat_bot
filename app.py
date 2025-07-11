@@ -9,6 +9,9 @@ from langchain_huggingface import HuggingFaceEmbeddings
 from langchain.chains import RetrievalQA
 from langchain_ollama import OllamaLLM
 import socket
+import threading
+from watchdog.observers import Observer
+from watchdog.events import FileSystemEventHandler
 
 PAPERS_FOLDER = "./papers"
 VECTORSTORE_PATH = "vectorstore.index"
@@ -17,6 +20,64 @@ EMBEDDING_MODEL = "sentence-transformers/all-mpnet-base-v2"
 SERVER_PORT = 7860
 
 print("*"*50)
+
+if not os.path.exists(PAPERS_FOLDER):
+    print(f"Creating papers folder at {PAPERS_FOLDER}")
+    os.makedirs(PAPERS_FOLDER)
+
+
+# --- Adding a reload function ---
+def reload_vectorstore_and_pipeline():
+    global vectorstore, qa_pipeline
+    print("🔄 Reloading vectorstore and pipeline...")
+    current_files = get_current_files_and_hashes(PAPERS_FOLDER)
+    processed_files = [(filename, filehash) for filename, filehash in load_processed_files()]
+
+    # Find new or updated files
+    new_files = [
+        (filename, filehash)
+        for filename, filehash in current_files
+        if (filename, filehash) not in processed_files
+    ]
+
+    if new_files:
+        print(f"⚠️ {len(new_files)} new PDF(s) detected.")
+        
+        documents = load_documents_from_folder(PAPERS_FOLDER)
+        # Only process new/updated docs
+        docs_to_add = [
+            doc for doc in documents
+            if any(doc.metadata.get("source", "").endswith(f[0]) for f in new_files)
+        ]
+        splits = split_documents(docs_to_add)
+        vectorstore.add_documents(splits)
+        save_vectorstore(vectorstore, VECTORSTORE_PATH)
+        save_processed_files(current_files)
+    else:
+        print("No new documents. Vectorstore is up to date.")
+
+    qa_pipeline = create_qa_pipeline(vectorstore)
+    print("✅ Reload complete.")
+
+class PDFChangeHandler(FileSystemEventHandler):
+    def on_created(self, event):
+        if event.src_path.endswith(".pdf"):
+            print(f"Detected new PDF. Reloading vectorstore and pipeline...")
+            threading.Thread(target=reload_vectorstore_and_pipeline, daemon=True).start()
+
+def start_folder_watcher(path):
+    event_handler = PDFChangeHandler()
+    observer = Observer()
+    observer.schedule(event_handler, path, recursive=False)
+    observer.daemon = True
+    observer.start()
+
+# Start the watcher in a background thread before main logic
+# This will allow the watcher to run concurrently with the Gradio interface
+# This is to keep an eye on the papers folder for new PDFs
+start_folder_watcher(PAPERS_FOLDER)
+
+
 def get_local_ip():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
@@ -130,9 +191,9 @@ if os.path.exists(VECTORSTORE_PATH):
     ]
 
     if new_files:
-        print(f"Found {len(new_files)} new or updated documents.")
-        print("New files:", new_files)
-        print("Adding new or updated documents to vectorstore...")
+        print(f"⚠️ {len(new_files)} new PDF(s) detected.")
+        # print("New files:", new_files)
+        print("Adding new PDF(s) to vectorstore...")
         documents = load_documents_from_folder(PAPERS_FOLDER)
         # Only process new/updated docs
         docs_to_add = [
@@ -154,7 +215,7 @@ else:
     save_vectorstore(vectorstore, VECTORSTORE_PATH)
     save_processed_files(current_files)
 
-print("Setup complete.")
+print("✅ Setup complete.")
 print("*"*50)
 
 qa_pipeline = create_qa_pipeline(vectorstore)

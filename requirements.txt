@@ -11,3 +11,4 @@ langchain_community==0.3.25
 langchain_huggingface==0.3.0
 langchain_ollama==0.3.3
 sentence_transformers==5.0.0
+watchdog==6.0.0

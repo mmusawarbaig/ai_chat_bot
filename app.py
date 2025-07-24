@@ -288,10 +288,10 @@ with gr.Blocks(theme="soft") as demo:
     # gr.Image("Logo_of_Hochschule_Kaiserslautern.png", width=120, show_label=False)   
     gr.ChatInterface(
     fn=chat_fn,
-    title="Research Paper Q&A with RAG",
+    title="AI Chat Bot",
     description="Hi, How can I help you?",
     flagging_mode="never",
     type="messages"  
     )
 
-demo.launch(server_name=get_local_ip(), server_port=SERVER_PORT, debug =True)
+demo.launch(server_name=get_local_ip(), server_port=SERVER_PORT)

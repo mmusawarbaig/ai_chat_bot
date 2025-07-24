@@ -3,7 +3,7 @@ import gradio as gr
 import hashlib
 import requests
 from langchain_community.vectorstores import FAISS
-from langchain_community.document_loaders import PyPDFLoader
+from langchain_community.document_loaders import PyMuPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain.chains import RetrievalQA
@@ -13,7 +13,9 @@ import threading
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 
-PAPERS_FOLDER = "./papers"
+PAPERS_FOLDER = "./papers" # "./papers_chat_bot_rag"
+
+
 VECTORSTORE_PATH = "vectorstore.index"
 PROCESSED_FILES_PATH = "processed_files.txt"
 EMBEDDING_MODEL = "sentence-transformers/all-mpnet-base-v2"
@@ -24,6 +26,31 @@ print("*"*50)
 if not os.path.exists(PAPERS_FOLDER):
     print(f"Creating papers folder at {PAPERS_FOLDER}")
     os.makedirs(PAPERS_FOLDER)
+
+
+def fix_names(folder_path):
+    # Loop through all files in the folder
+    for filename in os.listdir(folder_path):
+        # Check if it's a PDF file
+        if filename.endswith(".pdf"):
+            # Build the full file path
+            old_path = os.path.join(folder_path, filename)
+            
+            # Replace spaces, commas, and full stops (except the .pdf extension)
+            name, ext = os.path.splitext(filename)
+            new_name = name.replace(" ", "_").replace(",", "_").replace(".", "_") + ext
+            
+            # Skip renaming if old and new names are the same
+            if filename == new_name:
+                continue
+
+            # Build new file path
+            new_path = os.path.join(folder_path, new_name)
+
+
+            # Rename the file
+            os.rename(old_path, new_path)
+            print(f"Renamed: {filename} -> {new_name}")
 
 
 # --- Adding a reload function ---
@@ -116,6 +143,11 @@ def get_pdf_hash(filepath):
 
 
 def get_current_files_and_hashes(folder):
+    
+    # Fix file names in the folder
+    fix_names(folder)
+
+
     files = []
     for filename in os.listdir(folder):
         if filename.endswith(".pdf"):
@@ -137,12 +169,27 @@ def save_processed_files(files_and_hashes):
             f.write(f"{filename},{filehash}\n")
 
 
+
 def load_documents_from_folder(folder_path):
     docs = []
     for filename in os.listdir(folder_path):
         if filename.endswith(".pdf"):
-            loader = PyPDFLoader(os.path.join(folder_path, filename))
-            docs.extend(loader.load())
+            full_path = os.path.join(folder_path, filename)
+            if os.path.getsize(full_path) == 0:
+                print(f"⚠️ Skipping empty PDF: {filename}")
+                continue
+            try:
+                loader = PyMuPDFLoader(full_path)
+                loaded = loader.load()
+                # Filter out docs with invalid page_content
+                valid_loaded = [
+                    doc for doc in loaded
+                    if isinstance(doc.page_content, str) and doc.page_content.strip()
+                ]
+                docs.extend(valid_loaded)
+            except Exception as e:
+                print(f"⚠️ Skipping problematic PDF: {filename} ({e})")
+                continue
     return docs
 
 

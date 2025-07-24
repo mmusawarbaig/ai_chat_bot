@@ -4,3 +4,5 @@ vectorstore.index
 processed_files.txt
 __pycache__
 .DS_Store
+*.pdf
+*.zip

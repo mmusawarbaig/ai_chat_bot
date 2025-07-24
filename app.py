@@ -224,8 +224,17 @@ def create_qa_pipeline(vectorstore):
 
 # --- Chat function for Gradio ---
 def chat_fn(message, history):
-    # Filter out any turns where assistant reply is None
-    safe_history = [(user, assistant if assistant is not None else "") for user, assistant in history if user is not None]
+    # Gradio passes history as a list of dicts: [{"role": ..., "content": ...}, ...]
+    safe_history = []
+    user_msg = None
+    for msg in history:
+        if msg["role"] == "user":
+            user_msg = msg["content"]
+        elif msg["role"] == "assistant":
+            assistant_msg = msg["content"] if msg["content"] is not None else ""
+            if user_msg is not None:
+                safe_history.append((user_msg, assistant_msg))
+                user_msg = None
     output = qa_pipeline.invoke({"question": message, "chat_history": safe_history})
     return output["answer"]
 

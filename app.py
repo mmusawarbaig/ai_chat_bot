@@ -6,7 +6,7 @@ from langchain_community.vectorstores import FAISS
 from langchain_community.document_loaders import PyMuPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_huggingface import HuggingFaceEmbeddings
-from langchain.chains import RetrievalQA
+from langchain.chains import RetrievalQA, ConversationalRetrievalChain
 from langchain_ollama import OllamaLLM
 import socket
 import threading
@@ -218,8 +218,16 @@ def load_vectorstore(path):
 def create_qa_pipeline(vectorstore):
     retriever = vectorstore.as_retriever()
     llm = OllamaLLM(model="llama3.1:8b")
-    qa = RetrievalQA.from_chain_type(llm=llm, retriever=retriever)
+    qa = ConversationalRetrievalChain.from_llm(llm=llm, retriever=retriever)
     return qa
+
+
+# --- Chat function for Gradio ---
+def chat_fn(message, history):
+    # Filter out any turns where assistant reply is None
+    safe_history = [(user, assistant if assistant is not None else "") for user, assistant in history if user is not None]
+    output = qa_pipeline.invoke({"question": message, "chat_history": safe_history})
+    return output["answer"]
 
 
 # --- Main logic: load or build vectorstore ---
@@ -276,11 +284,14 @@ def answer_query(query):
     return output  # fallback
 
 
-gr.Interface(
-    fn=answer_query,
-    inputs=gr.Textbox(lines=2, placeholder="Ask a question..."),
-    outputs="text",
+with gr.Blocks(theme="soft") as demo:
+    # gr.Image("Logo_of_Hochschule_Kaiserslautern.png", width=120, show_label=False)   
+    gr.ChatInterface(
+    fn=chat_fn,
     title="Research Paper Q&A with RAG",
-    description="Enter a question. The system will retrieve relevant info from your research paper folder and answer your query using an LLM.",
-    flagging_mode="never"
-).launch(server_name=get_local_ip(), server_port=SERVER_PORT)
+    description="Hi, How can I help you?",
+    flagging_mode="never",
+    type="messages"  
+    )
+
+demo.launch(server_name=get_local_ip(), server_port=SERVER_PORT, debug =True)
